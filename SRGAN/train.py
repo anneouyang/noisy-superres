@@ -20,6 +20,7 @@ parser.add_argument('--crop_size', default=88, type=int, help='training images c
 parser.add_argument('--upscale_factor', default=4, type=int, choices=[2, 4, 8],
                     help='super resolution upscale factor')
 parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
+parser.add_argument('--gpu', default=0, type=int, help='which gpu number to use')
 
 
 if __name__ == '__main__':
@@ -28,6 +29,8 @@ if __name__ == '__main__':
     CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = opt.upscale_factor
     NUM_EPOCHS = opt.num_epochs
+
+    device = torch.device(f"cuda:{opt.gpu}")
 
     train_set = TrainDatasetFromFolder('data/miniplaces/train/corn_field', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
     val_set = ValDatasetFromFolder('data/miniplaces/val/corn_field', upscale_factor=UPSCALE_FACTOR)
@@ -42,9 +45,9 @@ if __name__ == '__main__':
     generator_criterion = GeneratorLoss()
 
     if torch.cuda.is_available():
-        netG.cuda()
-        netD.cuda()
-        generator_criterion.cuda()
+        netG.to(device)
+        netD.to(device)
+        generator_criterion.to(device)
 
     optimizerG = optim.Adam(netG.parameters())
     optimizerD = optim.Adam(netD.parameters())
@@ -67,10 +70,10 @@ if __name__ == '__main__':
             ###########################
             real_img = Variable(target)
             if torch.cuda.is_available():
-                real_img = real_img.cuda()
+                real_img = real_img.to(device)
             z = Variable(data)
             if torch.cuda.is_available():
-                z = z.cuda()
+                z = z.to(device)
             fake_img = netG(z)
 
             netD.zero_grad()

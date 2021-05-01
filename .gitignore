@@ -2,3 +2,4 @@
 SRGAN/data/miniplaces/*
 __pycache__/
 *.pyc
+.idea
