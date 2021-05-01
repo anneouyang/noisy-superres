@@ -1,0 +1,4 @@
+*.ipynb_checkpoints
+SRGAN/data/miniplaces/*
+__pycache__/
+*.pyc
