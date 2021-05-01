@@ -123,8 +123,8 @@ if __name__ == '__main__':
                 lr = val_lr
                 hr = val_hr
                 if torch.cuda.is_available():
-                    lr = lr.cuda()
-                    hr = hr.cuda()
+                    lr = lr.to(device)
+                    hr = hr.to(device)
                 sr = netG(lr)
 
                 batch_mse = ((sr - hr) ** 2).data.mean()
