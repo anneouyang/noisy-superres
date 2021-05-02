@@ -21,6 +21,7 @@ parser.add_argument('--upscale_factor', default=4, type=int, choices=[2, 4, 8],
                     help='super resolution upscale factor')
 parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
 parser.add_argument('--gpu', default=0, type=int, help='which gpu number to use')
+parser.add_argument('--dset', default="corn", help="which dataset to use")
 
 
 if __name__ == '__main__':
@@ -31,9 +32,21 @@ if __name__ == '__main__':
     NUM_EPOCHS = opt.num_epochs
 
     device = torch.device(f"cuda:{opt.gpu}")
+    if opt.dset == 'corn':
+        results_dir = "miniplace_results/corn_field/"
+        train_dir = 'data/miniplaces/train/corn_field'
+        val_dir = 'data/miniplaces/val/corn_field'
 
-    train_set = TrainDatasetFromFolder('data/miniplaces/train/corn_field', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
-    val_set = ValDatasetFromFolder('data/miniplaces/val/corn_field', upscale_factor=UPSCALE_FACTOR)
+    elif opt.dset == 'div2k':
+        results_dir = "div2k_results/exp1/"
+        train_dir = 'data/DIV2K/train'
+        val_dir = 'data/DIV2K/val'
+
+    else:
+        raise Exception("invalid dset")
+    assert results_dir[-1] == '/', "folder string for results_dir must end in /"
+    train_set = TrainDatasetFromFolder(train_dir, crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
+    val_set = ValDatasetFromFolder(val_dir, upscale_factor=UPSCALE_FACTOR)
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=64, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4, batch_size=1, shuffle=False)
 
@@ -109,7 +122,7 @@ if __name__ == '__main__':
                 running_results['g_score'] / running_results['batch_sizes']))
 
         netG.eval()
-        out_path = 'training_results/SRF_' + str(UPSCALE_FACTOR) + '/'
+        out_path = results_dir + 'training_results/SRF_' + str(UPSCALE_FACTOR) + '/'
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
@@ -150,8 +163,13 @@ if __name__ == '__main__':
                 index += 1
 
         # save model parameters
-        torch.save(netG.state_dict(), 'epochs/netG_epoch_%d_%d.pth' % (UPSCALE_FACTOR, epoch))
-        torch.save(netD.state_dict(), 'epochs/netD_epoch_%d_%d.pth' % (UPSCALE_FACTOR, epoch))
+        epoch_path = results_dir + 'epochs/'
+        if not os.path.exists(epoch_path):
+            os.makedirs(epoch_path)
+        if epoch % 10 == 0 and epoch != 0:
+            torch.save(netG.state_dict(), epoch_path + 'netG_epoch_%d_%d.pth' % (UPSCALE_FACTOR, epoch))
+            torch.save(netD.state_dict(), epoch_path + 'netD_epoch_%d_%d.pth' % (UPSCALE_FACTOR, epoch))
+
         # save loss\scores\psnr\ssim
         results['d_loss'].append(running_results['d_loss'] / running_results['batch_sizes'])
         results['g_loss'].append(running_results['g_loss'] / running_results['batch_sizes'])
@@ -161,7 +179,9 @@ if __name__ == '__main__':
         results['ssim'].append(valing_results['ssim'])
 
         if epoch % 10 == 0 and epoch != 0:
-            out_path = 'statistics/'
+            out_path = results_dir + 'statistics/'
+            if not os.path.exists(out_path):
+                os.makedirs(out_path)
             data_frame = pd.DataFrame(
                 data={'Loss_D': results['d_loss'], 'Loss_G': results['g_loss'], 'Score_D': results['d_score'],
                       'Score_G': results['g_score'], 'PSNR': results['psnr'], 'SSIM': results['ssim']},
