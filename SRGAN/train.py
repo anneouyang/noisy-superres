@@ -15,6 +15,8 @@ from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_tra
 from loss import GeneratorLoss
 from model import Generator, Discriminator
 
+torch.autograd.set_detect_anomaly(True)
+
 parser = argparse.ArgumentParser(description='Train Super Resolution Models')
 parser.add_argument('--crop_size', default=88, type=int, help='training images crop size')
 parser.add_argument('--upscale_factor', default=4, type=int, choices=[2, 4, 8],
@@ -38,7 +40,7 @@ if __name__ == '__main__':
         val_dir = 'data/miniplaces/val/corn_field'
 
     elif opt.dset == 'div2k':
-        results_dir = "div2k_results/exp1/"
+        results_dir = "div2k_results/exp2/"
         train_dir = 'data/DIV2K/train'
         val_dir = 'data/DIV2K/val'
 
@@ -130,7 +132,9 @@ if __name__ == '__main__':
             val_bar = tqdm(val_loader)
             valing_results = {'mse': 0, 'ssims': 0, 'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            for val_lr, val_hr_restore, val_hr in val_bar:
+            for i, (val_lr, val_hr_restore, val_hr) in enumerate(val_bar):
+                if i>=6:
+                    break
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
                 lr = val_lr
@@ -178,7 +182,7 @@ if __name__ == '__main__':
         results['psnr'].append(valing_results['psnr'])
         results['ssim'].append(valing_results['ssim'])
 
-        if epoch % 10 == 0 and epoch != 0:
+        if epoch % 5 == 0 and epoch != 0:
             out_path = results_dir + 'statistics/'
             if not os.path.exists(out_path):
                 os.makedirs(out_path)
