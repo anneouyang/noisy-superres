@@ -112,6 +112,10 @@ parser.add_argument("--multiprocessing-distributed", action="store_true",
                          "N processes per node, which has N GPUs. This is the "
                          "fastest way to use PyTorch for either single node or "
                          "multi node data parallel training.")
+parser.add_argument("--add_noise", type=int, default=0, choices=[0, 1],
+                    help="Add noise if 1 else 0. Optional: [0, 1] (Default: 0)")
+parser.add_argument("--save_dir", type=str, default="",
+                    help="Directory to save images")
 
 best_psnr = 0.0
 # Load base low-resolution image.
@@ -122,6 +126,9 @@ logger.info("Loaded `butterfly.png` successful.")
 
 def main():
     args = parser.parse_args()
+
+    create_folder(os.path.join(args.save_dir, "runs"))
+    create_folder(os.path.join(args.save_dir, "weights"))
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -243,8 +250,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     logger.info("Load training dataset")
     # Selection of appropriate treatment equipment.
-    train_dataset = BaseTrainDataset(os.path.join(args.data, "train"), args.image_size, args.upscale_factor)
-    test_dataset = BaseTestDataset(os.path.join(args.data, "val"), args.image_size, args.upscale_factor)
+    train_dataset = BaseTrainDataset(os.path.join(args.data, "train"), args.image_size, args.upscale_factor, noise_std = 0.05*args.add_noise)
+    test_dataset = BaseTestDataset(os.path.join(args.data, "val"), args.image_size, args.upscale_factor, noise_std = 0.05*args.add_noise)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -367,17 +374,17 @@ def main_worker(gpu, ngpus_per_node, args):
             #            "optimizer": psnr_optimizer.state_dict(),
             #            }, os.path.join("weights", f"PSNR_epoch{epoch}.pth"))
             if is_best:
-                torch.save(generator.state_dict(), os.path.join("weights", f"PSNR_noise.pth"))
+                torch.save(generator.state_dict(), os.path.join(args.save_dir, "weights", f"PSNR.pth"))
                 torch.save({"epoch": epoch + 1,
                         "arch": args.arch,
                         "best_psnr": best_psnr,
                         "state_dict": generator.state_dict(),
                         "optimizer": psnr_optimizer.state_dict(),
-                        }, os.path.join("weights", f"PSNR_noise_best.pth"))
+                        }, os.path.join(args.save_dir, "weights", f"PSNR_best.pth"))
 
     # Load best model weight.
     best_psnr = 0.0
-    generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR_noise.pth"), map_location=f"cuda:{args.gpu}"))
+    generator.load_state_dict(torch.load(os.path.join(args.save_dir, "weights", f"PSNR.pth"), map_location=f"cuda:{args.gpu}"))
 
     for epoch in range(args.start_gan_epoch, args.gan_epochs):
         if args.distributed:
@@ -421,18 +428,18 @@ def main_worker(gpu, ngpus_per_node, args):
             #            "optimizer": generator_optimizer.state_dict()
             #            }, os.path.join("weights", f"Generator_epoch{epoch}.pth"))
             if is_best:
-                torch.save(generator.state_dict(), os.path.join("weights", f"GAN.pth"))
+                torch.save(generator.state_dict(), os.path.join(args.save_dir,"weights", f"GAN.pth"))
                 torch.save({"epoch": epoch + 1,
                         "arch": "vgg",
                         "state_dict": discriminator.state_dict(),
                         "optimizer": discriminator_optimizer.state_dict()
-                        }, os.path.join("weights", f"Discriminator_best.pth"))
+                        }, os.path.join(args.save_dir, "weights", f"Discriminator_best.pth"))
                 torch.save({"epoch": epoch + 1,
                             "arch": args.arch,
                             "best_psnr": best_psnr,
                             "state_dict": generator.state_dict(),
                             "optimizer": generator_optimizer.state_dict()
-                            }, os.path.join("weights", f"Generator_best.pth"))
+                            }, os.path.join(args.save_dir, "weights", f"Generator_best.pth"))
 
 
 def train_psnr(dataloader: torch.utils.data.DataLoader,
@@ -485,7 +492,7 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
 
     # Each Epoch validates the model once.
     sr = model(base_image)
-    vutils.save_image(sr.detach(), os.path.join("runs", f"PSNR_epoch_{epoch}.png"))
+    vutils.save_image(sr.detach(), os.path.join(args.save_dir, "runs", f"PSNR_epoch_{epoch}.png"))
 
 
 def train_gan(dataloader: torch.utils.data.DataLoader,
@@ -578,7 +585,7 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
 
     # Each Epoch validates the model once.
     sr = generator(base_image)
-    vutils.save_image(sr.detach(), os.path.join("runs", f"GAN_epoch_{epoch}.png"))
+    vutils.save_image(sr.detach(), os.path.join(args.save_dir, "runs", f"GAN_epoch_{epoch}.png"))
 
 
 if __name__ == "__main__":

@@ -63,6 +63,12 @@ parser.add_argument("--seed", default=666, type=int,
                     help="Seed for initializing training. (Default: 666)")
 parser.add_argument("--gpu", default=None, type=int,
                     help="GPU id to use.")
+parser.add_argument("--noise_std", type=float, default=0,
+                    help="standard deviation of noise. 0 if no noise")
+parser.add_argument("--pre_denoise", dest="pre_denoise", action="store_true",
+                    help="Use cv2.fastNlMeansDenoisingColored before inputting into GAN")
+parser.add_argument("--post_denoise", dest="post_denoise", action="store_true",
+                    help="Use cv2.fastNlMeansDenoisingColored on output of GAN")
 
 total_mse_value = 0.0
 total_rmse_value = 0.0
@@ -99,10 +105,10 @@ def main_worker(gpu, args):
 
     logger.info("Load testing dataset.")
     # Selection of appropriate treatment equipment.
-    dataset = BaseTestDataset(os.path.join(args.data, "test"), args.image_size, args.upscale_factor)
+    dataset = BaseTestDataset(os.path.join(args.data, "val"), args.image_size, args.upscale_factor, noise_std = args.noise_std)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, pin_memory=True, num_workers=args.workers)
     logger.info(f"Dataset information:\n"
-                f"\tPath:              {os.getcwd()}/{args.data}/test\n"
+                f"\tPath:              {os.getcwd()}/{args.data}/val\n"
                 f"\tNumber of samples: {len(dataset)}\n"
                 f"\tNumber of batches: {len(dataloader)}\n"
                 f"\tShuffle:           False\n"

@@ -44,7 +44,7 @@ class AddGaussianNoise(object):
 
 
 class BaseTrainDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4, add_noise: bool = False):
+    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4, noise_std: float = 0.):
         r"""
         Args:
             root (str): The directory address where the data image is stored.
@@ -60,8 +60,8 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
             transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ]
-        if add_noise:
-            transforms_lr.insert(0, AddGaussianNoise())
+        if noise_std != 0:
+            transforms_lr.insert(0, AddGaussianNoise(std=noise_std))
         self.lr_transforms = transforms.Compose(transforms_lr)
 
         self.hr_transforms = transforms.Compose([
@@ -92,7 +92,7 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
 
 
 class BaseTestDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4, add_noise: bool = False):
+    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4, noise_std: float = 0.):
         r"""
         Args:
             root (str): The directory address where the data image is stored.
@@ -107,8 +107,8 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
             transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ]
-        if add_noise:
-            transforms_lr.insert(0, AddGaussianNoise())
+        if noise_std != 0:
+            transforms_lr.insert(0, AddGaussianNoise(std=noise_std))
         self.lr_transforms = transforms.Compose(transforms_lr)
 
         self.bicubic_transforms = transforms.Compose([
