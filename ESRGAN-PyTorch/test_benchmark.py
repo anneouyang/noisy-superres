@@ -15,6 +15,8 @@ import argparse
 import logging
 import os
 import random
+import numpy as np
+import cv2
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -69,6 +71,9 @@ parser.add_argument("--pre_denoise", dest="pre_denoise", action="store_true",
                     help="Use cv2.fastNlMeansDenoisingColored before inputting into GAN")
 parser.add_argument("--post_denoise", dest="post_denoise", action="store_true",
                     help="Use cv2.fastNlMeansDenoisingColored on output of GAN")
+parser.add_argument("--evaluate_bicubic", dest="evaluate_bicubic", action="store_true",
+                    help="Compute metrics of bicubic interpolation")
+
 
 total_mse_value = 0.0
 total_rmse_value = 0.0
@@ -124,6 +129,11 @@ def main_worker(gpu, args):
         # Start evaluate model performance.
         progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
         for i, (lr, bicubic, hr) in progress_bar:
+            if args.pre_denoise:
+                new_lr = np.moveaxis(lr.numpy(), 1, 3)
+                for i in range(new_lr.shape[0]):
+                    temp = cv2.fastNlMeansDenoisingColored((new_lr[i] * 255).astype('uint8'), None,10,10,7,21)
+                    lr[i] = torch.from_numpy(np.moveaxis(temp/255, -1, 0))
             # Move data to special device.
             if args.gpu is not None:
                 lr = lr.cuda(args.gpu, non_blocking=True)
@@ -132,8 +142,16 @@ def main_worker(gpu, args):
 
             sr = model(lr)
 
+            if args.post_denoise:
+                new_sr = np.moveaxis(sr.cpu().numpy(), 1, 3)
+                for i in range(new_sr.shape[0]):
+                    temp = cv2.fastNlMeansDenoisingColored((new_sr[i] * 255).astype('uint8'), None,10,10,7,21)
+                    sr[i] = torch.from_numpy(np.moveaxis(temp/255, -1, 0))
+                if args.gpu is not None:
+                    sr = sr.cuda(args.gpu, non_blocking=True)
+
             # Evaluate performance
-            value = iqa(sr, hr, args.gpu)
+            value = iqa(bicubic if args.evaluate_bicubic else sr, hr, args.gpu)
 
             total_mse_value += value[0]
             total_rmse_value += value[1]
