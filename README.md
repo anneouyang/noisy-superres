@@ -11,7 +11,7 @@ Experiments with different super-resolution and denoising techniques to determin
 
 Experiment examples
 
-![](/Users/anneouyang/Documents/mit/spring21/6869/noisy-superres/visual_results/img8.png)
+![](/visual_results/img8.png)
 
-![](/Users/anneouyang/Documents/mit/spring21/6869/noisy-superres/visual_results/img4.png)
+![](/visual_results/img4.png)
 
