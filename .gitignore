@@ -5,3 +5,4 @@ __pycache__/
 .idea
 SRGAN/training_results
 *.pth
+data/
