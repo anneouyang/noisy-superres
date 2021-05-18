@@ -30,6 +30,10 @@ from esrgan_pytorch.utils.common import configure
 from esrgan_pytorch.utils.common import create_folder
 from esrgan_pytorch.utils.estimate import iqa
 
+import sys
+sys.path.append("../DIDN")
+import color_model
+
 model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 logger = logging.getLogger(__name__)
@@ -67,10 +71,10 @@ parser.add_argument("--gpu", default=None, type=int,
                     help="GPU id to use.")
 parser.add_argument("--noise_std", type=float, default=0,
                     help="standard deviation of noise. 0 if no noise")
-parser.add_argument("--pre_denoise", dest="pre_denoise", action="store_true",
-                    help="Use cv2.fastNlMeansDenoisingColored before inputting into GAN")
-parser.add_argument("--post_denoise", dest="post_denoise", action="store_true",
-                    help="Use cv2.fastNlMeansDenoisingColored on output of GAN")
+parser.add_argument("--pre_denoise", type=str, default="none", choices=["none", "didn", "n1_means"],
+                    help="Use denoising before inputting into GAN")
+parser.add_argument("--post_denoise", type=str, default="none", choices=["none", "didn", "n1_means"],
+                    help="Use denoising on output of GAN")
 parser.add_argument("--evaluate_bicubic", dest="evaluate_bicubic", action="store_true",
                     help="Compute metrics of bicubic interpolation")
 
@@ -102,11 +106,18 @@ def main_worker(gpu, args):
 
     model = configure(args)
 
+    denoise_model = None
+    if args.pre_denoise == "didn" or args.post_denoise == "didn":
+        denoise_model = color_model._NetG()
+        checkpoint = torch.load('../DIDN/checkpoint/color_model.pth', map_location=lambda storage, loc: storage)
+        denoise_model.load_state_dict(checkpoint['model'].state_dict())
     if not torch.cuda.is_available():
         logger.warning("Using CPU, this will be slow.")
     if args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
+        if args.pre_denoise == "didn" or args.post_denoise == "didn":
+            denoise_model = denoise_model.cuda(args.gpu)
 
     logger.info("Load testing dataset.")
     # Selection of appropriate treatment equipment.
@@ -129,7 +140,7 @@ def main_worker(gpu, args):
         # Start evaluate model performance.
         progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
         for i, (lr, bicubic, hr) in progress_bar:
-            if args.pre_denoise:
+            if args.pre_denoise == "n1_means":
                 new_lr = np.moveaxis(lr.numpy(), 1, 3)
                 for i in range(new_lr.shape[0]):
                     temp = cv2.fastNlMeansDenoisingColored((new_lr[i] * 255).astype('uint8'), None,10,10,7,21)
@@ -140,9 +151,12 @@ def main_worker(gpu, args):
                 bicubic = bicubic.cuda(args.gpu, non_blocking=True)
                 hr = hr.cuda(args.gpu, non_blocking=True)
 
+            if args.pre_denoise == "didn":
+                lr = denoise_model(lr).clip(0,1)
+
             sr = model(lr)
 
-            if args.post_denoise:
+            if args.post_denoise == "n1_means":
                 new_sr = np.moveaxis(sr.cpu().numpy(), 1, 3)
                 for i in range(new_sr.shape[0]):
                     temp = cv2.fastNlMeansDenoisingColored((new_sr[i] * 255).astype('uint8'), None,10,10,7,21)
@@ -150,6 +164,8 @@ def main_worker(gpu, args):
                 if args.gpu is not None:
                     sr = sr.cuda(args.gpu, non_blocking=True)
 
+            if args.post_denoise == "didn":
+                sr = denoise_model(sr).clip(0,1)
             # Evaluate performance
             value = iqa(bicubic if args.evaluate_bicubic else sr, hr, args.gpu)
 
