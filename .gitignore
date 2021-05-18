@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 .idea
 SRGAN/training_results
+data/
 *.pth
